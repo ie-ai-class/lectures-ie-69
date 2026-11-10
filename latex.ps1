@@ -14,31 +14,33 @@ function Compile-LaTeXDocument {
 
     # Define build targets: Key = suffix, Value = latex code preamble
     $targets = @(
-        @{ Suffix = "student"; Code = "\def\studentflag{1}\input{$Folder/$Stem}" },
-        @{ Suffix = "solution"; Code = "\input{$Folder/$Stem}" }
+        @{ Suffix = "student"; Code = "\def\studentflag{1}\input{$Stem}" },
+        @{ Suffix = "solution"; Code = "\input{$Stem}" }
     )
 
     foreach ($target in $targets) {
-        $jobName = "$Folder/${cleanStem}_$($target.Suffix)"
-        
-        # Run pdflatex for the specified number of passes (to resolve references)
-        1..$Passes | ForEach-Object {
-            pdflatex -jobname "$jobName" "$($target.Code)"
+        $jobName = "${cleanStem}_$($target.Suffix)"
+
+        # Compile from the document's own folder so relative paths
+        # (img/..., ../../*.sty) resolve the same way as in LaTeX Workshop
+        Push-Location $Folder
+        try {
+            # Run pdflatex for the specified number of passes (to resolve references)
+            1..$Passes | ForEach-Object {
+                pdflatex -jobname "$jobName" "$($target.Code)"
+            }
+        }
+        finally {
+            Pop-Location
         }
     }
 }
 
-# $folder = "src/T02_ml_basics/S1"
-# $stem = "_linear_regression"
-# pdflatex -jobname "${folder}/$($stem.Substring(1))_student"  "\def\studentflag{1}\input{$folder/$stem}"
-# pdflatex -jobname "${folder}/$($stem.Substring(1))_student"  "\def\studentflag{1}\input{$folder/$stem}"
-# pdflatex -jobname "${folder}/$($stem.Substring(1))_solution" "\input{$folder/$stem}"
-# pdflatex -jobname "${folder}/$($stem.Substring(1))_solution" "\input{$folder/$stem}"
-
-#Compile-LaTeXDocument -Folder "src/T02_ml_basics/S1" -Stem "_linear_regression"
-#Compile-LaTeXDocument -Folder "src/T02_ml_basics/S2" -Stem "_classification"
+Compile-LaTeXDocument -Folder "src/T02_ml_basics/S1" -Stem "_linear_regression"
+Compile-LaTeXDocument -Folder "src/T02_ml_basics/S2" -Stem "_classification"
 Compile-LaTeXDocument -Folder "src/T03_ffn_basics/S1" -Stem "_xor"
 Compile-LaTeXDocument -Folder "src/T03_ffn_basics/S2" -Stem "_gradient_descent"
 Compile-LaTeXDocument -Folder "src/T03_ffn_basics/S3" -Stem "_forward_pass"
 Compile-LaTeXDocument -Folder "src/T03_ffn_basics/S4" -Stem "_backpropagation"
 Compile-LaTeXDocument -Folder "src/T03_ffn_basics/S5" -Stem "_adam"
+Compile-LaTeXDocument -Folder "src/T03_ffn_basics/S6" -Stem "_mlp"
