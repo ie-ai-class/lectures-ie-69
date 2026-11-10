@@ -1,100 +1,19 @@
 \documentclass[12pt, a4paper]{article}
 
-% ── Packages ──────────────────────────────────────────────────────────────────
-\usepackage{amsmath, amssymb, amsthm}
-\usepackage{geometry}
-\usepackage{booktabs}
-\usepackage{array}
-\usepackage{hyperref}
-\usepackage{xcolor}
-\usepackage{tcolorbox}
-\usepackage{enumitem}
-\usepackage{parskip}
-
-\geometry{margin=2.5cm}
-
-% ══════════════════════════════════════════════════════════════════════════════
-% ── Student-mode switch ───────────────────────────────────────────────────────
-%
-%   Compile with: \def\studentflag{1}\input{...}  → student version
-%   Compile with: \input{...}                      → instructor version
-%
-\newif\ifstudentmode
-\studentmodefalse       % default: instructor mode
-
-\ifx\studentflag\undefined
-  % no flag passed — keep studentmodefalse
-\else
-  \studentmodetrue
-\fi
-% ══════════════════════════════════════════════════════════════════════════════
-
-% ── Student-mode macros ───────────────────────────────────────────────────────
-%
-%  \sol[<width>]{<math content>}   — blank inside a math environment
-%  \soleq[<height>]{<math content>} — blank replacing an entire display equation
-%
-\newcommand{\sol}[2][6cm]{%
-  \ifstudentmode
-    \underline{\hspace{#1}}%
-  \else
-    {#2}%
-  \fi
-}
-
-\newcommand{\soleq}[2][3cm]{%
-  \ifstudentmode
-    \par\vspace{4pt}%
-    \noindent\rule{\linewidth}{0.5pt}\\[#1]%
-    \noindent\rule{\linewidth}{0.5pt}%
-    \par\vspace{4pt}%
-  \else
-    \[#2\]%
-  \fi
-}
-% ──────────────────────────────────────────────────────────────────────────────
-
-% ── Colors & boxes ────────────────────────────────────────────────────────────
-\definecolor{mainblue}{RGB}{30, 100, 180}
-\definecolor{boxbg}{RGB}{235, 243, 255}
-\definecolor{notebg}{RGB}{255, 248, 230}
-
-\tcbuselibrary{skins, breakable}
-
-\newtcolorbox{resultbox}{
-  colback=boxbg, colframe=mainblue,
-  boxrule=1.2pt, arc=4pt,
-  title={Result},
-  fonttitle=\bfseries\color{white},
-  coltitle=white, attach boxed title to top left={yshift=-2mm, xshift=4mm},
-  boxed title style={colback=mainblue, arc=3pt}
-}
-
-\newtcolorbox{notebox}{
-  colback=notebg, colframe=orange!70!black,
-  boxrule=1pt, arc=4pt,
-  left=4pt, right=4pt
-}
-
-% ── Theorem environments ───────────────────────────────────────────────────────
-\theoremstyle{definition}
-\newtheorem{example}{Example}[section]
-
-% ── Math macros ───────────────────────────────────────────────────────────────
-\newcommand{\bth}{\boldsymbol{\theta}}
-\newcommand{\bx}{\mathbf{x}}
-\newcommand{\bX}{\mathbf{X}}
-\newcommand{\by}{\mathbf{y}}
-\newcommand{\bw}{\mathbf{w}}
-\newcommand{\yhat}{\hat{y}}
-\newcommand{\sigmoid}{\sigma}
+% ── Shared preamble (src/lecturenotes.sty) ────────────────────────────────────
+%   Packages, colors, boxes, \sol/\soleq and math macros all live in
+%   src/*.sty. \input@path points LaTeX two folders up to find them.
+\makeatletter
+\def\input@path{{../../}}
+\makeatother
+\usepackage{lecturenotes}
 
 % ── Document ──────────────────────────────────────────────────────────────────
 \begin{document}
 
 \begin{center}
-  {\LARGE \textbf{Section 1.2: Logistic Regression}} \\[0.5em]
-  {\large AI Class — Lecture Notes}%
+  {\LARGE \textbf{Section 1.2: Classification}} \\[0.5em]
+  {\large AI-IE Class — Lecture Notes}%
   \ifstudentmode
     \quad {\normalsize\color{gray}[Student Copy]}%
   \fi
@@ -124,35 +43,168 @@ For example, we might ask:
   \end{tabular}
 \end{center}
 
+\subsection{A Toy Example}
+
+Consider six observations, each labelled either class F or class T.
+We encode the labels numerically as $y = 0$ for F and $y = 1$ for T:
+
+\begin{center}
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{c|cccccc}
+    \toprule
+    $x$   & 1 & 2 & 3 & 4 & 5 & 6 \\
+    \midrule
+    Class & F & F & T & F & T & T \\
+    $y$   & 0 & 0 & 1 & 0 & 1 & 1 \\
+    \bottomrule
+  \end{tabular}
+\end{center}
+
+Small $x$ is mostly F and large $x$ is mostly T, but the classes
+\emph{overlap} around $x = 3$ and $x = 4$.
+This is the region where we should be \emph{uncertain} about the label.
+
+\rimg{img/2026-11-04-22-17-39.png}{Scatter plot of the toy data with a linear regression line.}
+
+
+\textbf{A naive attempt: linear regression.}
+Since $y$ is now a number, nothing stops us from fitting $\yhat = wx + b$
+with the closed-form solution from Section~1.1.
+Here $\xbar = 3.5$ and $\ybar = 0.5$:
+
+\begin{center}
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{ccccc}
+    \toprule
+    $i$ & $x_i - \xbar$            & $y_i - \ybar$
+        & $(x_i-\xbar)(y_i-\ybar)$ & $(x_i-\xbar)^2$                                             \\
+    \midrule
+    1   & $-2.5$                   & $-0.5$           & $\phantom{-}1.25$  & $6.25$              \\
+    2   & $-1.5$                   & $-0.5$           & $\phantom{-}0.75$  & $2.25$              \\
+    3   & $-0.5$                   & $\phantom{-}0.5$ & $-0.25$            & $0.25$              \\
+    4   & $\phantom{-}0.5$         & $-0.5$           & $-0.25$            & $0.25$              \\
+    5   & $\phantom{-}1.5$         & $\phantom{-}0.5$ & $\phantom{-}0.75$  & $2.25$              \\
+    6   & $\phantom{-}2.5$         & $\phantom{-}0.5$ & $\phantom{-}1.25$  & $6.25$              \\
+    \midrule
+        &                          & \textbf{Sum}     & $\sol[1.5cm]{3.5}$ & $\sol[1.5cm]{17.5}$ \\
+    \bottomrule
+  \end{tabular}
+\end{center}
+
+% ── \sol applied: student computes w and b from the sums ─────────────────────
+\[
+  w = \sol{\dfrac{3.5}{17.5} = 0.2},
+  \qquad
+  b = \sol{0.5 - 0.2 \times 3.5 = -0.2}.
+\]
+
+The fitted line is $\yhat = \sol{0.2\,x - 0.2}$.
+% ─────────────────────────────────────────────────────────────────────────────
+
 \textbf{Why not use linear regression?}
-If we fit $\yhat = wx + b$ directly and threshold at $0.5$, the model is
-not constrained: it can predict values far below 0 or above 1, which are
-meaningless as probabilities and sensitive to outliers.
+As a \emph{classifier}, the line is not terrible: thresholding at
+$\yhat = 0.5$ gives the boundary $x = 3.5$, right in the middle of the
+overlap.
+The trouble starts when we try to read $\yhat$ as a
+\emph{probability} of class T (see the accompanying marimo notebook):
+
+\begin{itemize}
+  \item \textbf{Values outside $[0, 1]$.}
+        At $x = 0$ the line predicts $\yhat = \sol[1.5cm]{-0.2}$, and at $x = 8$ it
+        predicts $\yhat = \sol[1.5cm]{1.4}$.
+        Neither is a valid probability.
+  \item \textbf{Constant slope.}
+        Each extra unit of $x$ adds the same $0.2$, whether we are deep inside
+        one class or in the uncertain overlap.
+        Intuitively, moving from $x = 3$ to $x = 4$ should change our belief a lot,
+        while moving from $x = 5$ to $x = 6$ (already confidently T) should change
+        it very little.
+  \item \textbf{Sensitivity to outliers.}
+        A single far-away point, e.g.\ $(x, y) = (20, 1)$, flattens the line
+        and drags the $0.5$-threshold to the right, so points that were
+        correctly classified before can become misclassified.
+\end{itemize}
+
+\subsection{What Shape Do We Want?}
+
 What we really want is a model that outputs a \emph{probability}:
 \[
   \hat{p} = P(y = 1 \mid x) \in (0, 1).
 \]
+For the toy data, a sensible curve should:
+\begin{itemize}[nosep]
+  \item stay close to $0$ for small $x$ (confidently F),
+  \item stay close to $1$ for large $x$ (confidently T),
+  \item rise \emph{smoothly} through the overlap region, passing $0.5$ near
+        $x = 3.5$, where we are least certain.
+\end{itemize}
+This is an \textbf{S-shaped} curve (see the marimo notebook), not a
+straight line.
+
+\rimg{img/2026-11-04-22-19-04.png}{The S-shaped curve that we want to achieve.}
 
 % ══════════════════════════════════════════════════════════════════════════════
 \section{The Sigmoid Function: Motivation via Log-Odds}
 
-A natural way to build a probability model is to assume that the
-\textbf{log-odds} (logit) of the event is a linear function of the input.
-
-The \textbf{odds} of an event with probability $p$ are defined as:
+We would still like to use a linear function $wx + b$: it is simple,
+interpretable, and we already know how to work with it.
+The problem is a mismatch of ranges:
 \[
-  \text{odds} = \frac{p}{1 - p}.
+  wx + b \in (-\infty, \infty)
+  \qquad \text{but} \qquad
+  p \in (0, 1).
 \]
+So instead of forcing $p$ itself to be linear in $x$, we \textbf{transform}
+$p$ into a quantity that lives on all of $\mathbb{R}$, and make
+\emph{that} quantity linear.
+We do this in two steps.
 
-We assume the \textbf{log-odds} are linear:
+\textbf{Step 1: probability $\to$ odds.}
+The \textbf{odds} of an event with probability $p$ are:
+\[
+  \text{odds} = \frac{p}{1 - p} \in (0, \infty).
+\]
+This removes the upper limit of $1$, but the odds are still positive.
+
+\textbf{Step 2: odds $\to$ log-odds.}
+Taking the logarithm maps $(0, \infty)$ onto all of $\mathbb{R}$:
+\[
+  \text{log-odds} = \log \frac{p}{1 - p} \in (-\infty, \infty).
+\]
+This quantity is also called the \textbf{logit} of $p$.
+
+\rimg[0.9]{img/2026-11-04-22-21-45.png}{Odd and log-odd transformations of probability.}
+
+
+
+\begin{center}
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{cccc}
+    \toprule
+    $p$   & odds $= \dfrac{p}{1-p}$ & log-odds             & Interpretation    \\
+    \midrule
+    $0.1$ & $1/9$                   & $\sol[1.5cm]{-2.20}$ & likely F          \\
+    $0.5$ & $\sol[1.5cm]{1}$        & $\sol[1.5cm]{0}$     & completely unsure \\
+    $0.9$ & $9$                     & $\sol[1.5cm]{2.20}$  & likely T          \\
+    \bottomrule
+  \end{tabular}
+\end{center}
+
+The log-odds are symmetric around $0$, and $p = 0.5$ maps exactly to $0$.
+Now the ranges match, so we model the log-odds as linear in $x$:
 
 \begin{equation}
   \log \frac{p}{1-p} = wx + b.
   \label{eq:logodds}
 \end{equation}
 
-This is a reasonable model: the log-odds can range over all of $\mathbb{R}$,
-which matches a linear function perfectly.
+\begin{notebox}
+  The log-odds is not the only possible choice: any function that maps
+  $(0, 1)$ onto $\mathbb{R}$ would work (for example, the inverse of the
+  normal CDF gives \emph{probit} regression).
+  The log-odds is preferred because it is simple and
+  interpretable: increasing $x$ by one unit multiplies the odds by $e^{w}$.
+\end{notebox}
 
 \subsection{Solving for \texorpdfstring{$p$}{p}}
 
@@ -174,6 +226,8 @@ Exponentiating both sides of \eqref{eq:logodds} and solving for $p$:
 
 This function $\sigmoid(z) = \dfrac{1}{1+e^{-z}}$ is called the
 \textbf{sigmoid} (or logistic) function.
+It is exactly the smooth S-shaped curve we asked for: by making the
+log-odds linear, the probability automatically becomes S-shaped in $x$.
 
 \begin{notebox}
   \textbf{Key properties of $\sigmoid(z)$.}
@@ -188,10 +242,82 @@ This function $\sigmoid(z) = \dfrac{1}{1+e^{-z}}$ is called the
   \end{itemize}
 \end{notebox}
 
+\rimg[1.0]{img/2026-11-04-22-24-41.png}{Log-odds, odds, and the sigmoid function.}
+
 % ══════════════════════════════════════════════════════════════════════════════
 \section{The Logistic Regression Model}
 
-For $d$ features, the model generalises directly:
+So far we have used a single feature $x$, and the sigmoid's input is the
+number $z = wx + b$.
+With more features, \textbf{only $z$ changes}: it is still a single number,
+it just collects more terms.
+
+\subsection{Two Features: Writing It Out}
+
+Suppose each observation has two features $x_1$ and $x_2$
+(e.g.\ hours studied and hours slept).
+The log-odds are now linear in both:
+\[
+  z = b + w_1 x_1 + w_2 x_2,
+  \qquad
+  \hat{p} = \sigmoid(z) = \frac{1}{1 + e^{-z}}.
+\]
+
+To write this compactly, collect the parameters and the features
+(with a leading $1$ for the bias, as in Section~1.1) into column vectors:
+\[
+  \bth = \begin{bmatrix} b \\ w_1 \\ w_2 \end{bmatrix},
+  \qquad
+  \bx = \begin{bmatrix} 1 \\ x_1 \\ x_2 \end{bmatrix}.
+\]
+Then $\bth^{\top}$ is a \emph{row} vector, and multiplying a row by a column
+gives back exactly the same sum:
+\[
+  \bth^{\top}\bx
+  = \begin{bmatrix} b & w_1 & w_2 \end{bmatrix}
+  \begin{bmatrix} 1 \\ x_1 \\ x_2 \end{bmatrix}
+  = \sol[5cm]{b \cdot 1 + w_1 x_1 + w_2 x_2}.
+\]
+Size check: $(1 \times 3)\,(3 \times 1) = (1 \times 1)$, a \textbf{single number}.
+
+\begin{example}[Computing $\hat{p}$ with two features]
+  Let $\bth = [-3,\; 1,\; 0.5]^{\top}$ and consider a student with
+  $x_1 = 2$ hours studied and $x_2 = 4$ hours slept, so
+  $\bx = [1,\; 2,\; 4]^{\top}$.
+
+  % ── \sol applied: student evaluates z and p ────────────────────────────────
+  \[
+    z = \bth^{\top}\bx
+    = \begin{bmatrix} -3 & 1 & 0.5 \end{bmatrix}
+    \begin{bmatrix} 1 \\ 2 \\ 4 \end{bmatrix}
+    = \sol[6cm]{(-3)(1) + (1)(2) + (0.5)(4) = 1}
+  \]
+  \[
+    \hat{p} = \sigmoid(z) = \sol[6cm]{\frac{1}{1 + e^{-1}} \approx 0.73}
+  \]
+  % ──────────────────────────────────────────────────────────────────────────
+
+  Since $\hat{p} \ge 0.5$, the predicted class is $\hat{y} = \sol[1cm]{1}$ (pass).
+\end{example}
+
+\subsection{Any Number of Features}
+
+For $d$ features the pattern is the same; the vectors just get longer:
+\[
+  z = \bth^{\top}\bx
+  = \underbrace{b + w_1 x_1 + w_2 x_2 + \cdots + w_d x_d}_{\text{still one number}}.
+\]
+
+\begin{notebox}
+  No matter how many features we have, $\bth^{\top}\bx$ is a
+  \textbf{single number} (a scalar).
+  The sigmoid only ever sees one number $z$, so everything we learned
+  about $\sigmoid(z)$ for one feature carries over unchanged.
+  The decision boundary $z = 0$ is a point when $d = 1$, a line when $d = 2$,
+  and a plane (hyperplane) for larger $d$.
+\end{notebox}
+
+Writing the observation index $i$ explicitly, the model is:
 
 \begin{equation}
   \hat{p}^{(i)} = \sigmoid\!\left(\bth^{\top}\bx^{(i)}\right)
@@ -211,6 +337,26 @@ The predicted class is:
 % ══════════════════════════════════════════════════════════════════════════════
 \section{Cost Function: Cross-Entropy via MLE}
 
+\begin{notebox}
+  \textbf{Why not MSE again?}
+  Technically, we \emph{could} reuse the MSE from Section~1.1,
+  $J(\bth) = \frac{1}{n}\sum_{i}\bigl(y^{(i)} - \hat{p}^{(i)}\bigr)^2$,
+  but it is a poor choice for classification:
+  \begin{enumerate}[nosep]
+    \item \textbf{Weak learning from big mistakes.}
+          When the model is confidently wrong ($\hat{p}$ near $0$ or $1$),
+          the sigmoid is flat, so the MSE gradient is tiny and the model
+          barely corrects itself.
+    \item \textbf{Non-convex.}
+          Combined with the sigmoid, MSE is non-convex in $\bth$, so gradient
+          descent can stall on plateaus or local minima.
+    \item \textbf{Wrong noise model.}
+          MSE suits continuous outputs with Gaussian noise; our labels are
+          $0$/$1$, which are naturally modelled as Bernoulli.
+  \end{enumerate}
+  Deriving the loss from the Bernoulli likelihood (below) fixes all three.
+\end{notebox}
+
 \subsection{Setting Up the Likelihood}
 
 We model each label $y^{(i)}$ as a Bernoulli random variable with success
@@ -221,7 +367,77 @@ probability $\hat{p}^{(i)}$:
   \left(1 - \hat{p}^{(i)}\right)^{1 - y^{(i)}}.
 \]
 
-Assuming the $n$ observations are independent, the joint likelihood is:
+\textbf{Reading the formula.}
+The model gives $\hat{p}^{(i)}$, the probability that $y^{(i)} = 1$.
+What we want is the probability of the label we \emph{actually observed}:
+\[
+  P\!\left(y^{(i)} \mid \bx^{(i)};\,\bth\right) =
+  \begin{cases}
+    \hat{p}^{(i)}     & \text{if } y^{(i)} = 1, \\[2pt]
+    1 - \hat{p}^{(i)} & \text{if } y^{(i)} = 0.
+  \end{cases}
+\]
+The Bernoulli formula is just a compact way to write these two cases in one
+line. The exponents work like a switch:
+
+% ── \sol applied: student checks both cases of the switch ────────────────────
+\begin{center}
+  \renewcommand{\arraystretch}{1.4}
+  \begin{tabular}{lll}
+    $y = 1$: & $\hat{p}^{\,1}\,(1-\hat{p})^{0}$
+             & $= \sol[2.5cm]{\hat{p} \cdot 1 = \hat{p}}$         \\
+    $y = 0$: & $\hat{p}^{\,0}\,(1-\hat{p})^{1}$
+             & $= \sol[2.5cm]{1 \cdot (1-\hat{p}) = 1 - \hat{p}}$
+  \end{tabular}
+\end{center}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Anything raised to the power $0$ equals $1$, so the factor that does not
+match the observed label simply disappears.
+
+\begin{example}[Probability of the observed labels]
+  A model gives the following predictions for four observations:
+
+  % ── \sol applied: student fills in the probability of each observed label ──
+  \begin{center}
+    \renewcommand{\arraystretch}{1.4}
+    \begin{tabular}{cccc}
+      \toprule
+      $i$ & Observed $y^{(i)}$                                                             & Predicted $\hat{p}^{(i)}$
+          & $\left(\hat{p}^{(i)}\right)^{y^{(i)}}\left(1-\hat{p}^{(i)}\right)^{1-y^{(i)}}$                                                                         \\
+      \midrule
+      1   & 0                                                                              & 0.1                       & $0.1^{0} \times 0.9^{1} = 0.9$            \\
+      2   & 1                                                                              & 0.8                       & $0.8^{1} \times 0.2^{0} = 0.8$            \\
+      3   & 1                                                                              & 0.6                       & $\sol[4cm]{0.6^{1} \times 0.4^{0} = 0.6}$ \\
+      4   & 0                                                                              & 0.3                       & $\sol[4cm]{0.3^{0} \times 0.7^{1} = 0.7}$ \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+
+  Each entry is the probability the model assigns to what \emph{really}
+  happened. A value close to $1$ means the model predicted that observation
+  well; a value close to $0$ means it was confidently wrong.
+
+  Assuming the observations are independent, the probability of seeing
+  \emph{all four} labels is the product:
+  \[
+    \mathcal{L}
+    = \sol[8cm]{0.9 \times 0.8 \times 0.6 \times 0.7 \approx 0.302}
+  \]
+
+  Now compare a worse model that predicts $\hat{p} = 0.6,\ 0.3,\ 0.4,\ 0.8$
+  for the same four observations:
+  \[
+    \mathcal{L}
+    = \sol[8cm]{0.4 \times 0.3 \times 0.4 \times 0.2 \approx 0.010}
+  \]
+  The better model gives the observed data a much higher probability.
+  \textbf{Maximum likelihood estimation (MLE)} simply chooses the
+  parameters $\bth$ that make this product as large as possible.
+\end{example}
+
+In general, assuming the $n$ observations are independent, the joint
+likelihood is:
 \[
   \mathcal{L}(\bth)
   = \prod_{i=1}^{n}
@@ -263,6 +479,10 @@ the \textbf{Binary Cross-Entropy (BCE)} loss:
   matters.  The two terms switch on and off depending on the true label.
 \end{notebox}
 
+\rimg{img/2026-11-04-22-27-39.png}{Interactive plot showing BCE loss.}
+
+\rimg{img/2026-11-04-22-29-05.png}{BCE loss surface}
+
 % ══════════════════════════════════════════════════════════════════════════════
 \section{The Gradient and Why We Need Gradient Descent}
 
@@ -299,6 +519,60 @@ where $\alpha > 0$ is the \textbf{learning rate}.
 Gradient descent will be covered in detail in the next section.
 
 % ══════════════════════════════════════════════════════════════════════════════
+\section{Visualising the Decision Boundary}
+
+\rimg{img/2026-11-04-05-56-54.png}{Visualising the decision boundary in 2D}
+
+The figure shows $\hat{p} = \sigmoid(b + w_1x_1 + w_2x_2)$ as a surface over the
+$(x_1, x_2)$ plane: the red points (class 1) sit on the high plateau
+($\hat{p} \approx 1$), the blue points (class 0) on the low plateau
+($\hat{p} \approx 0$), and the surface rises smoothly between them.
+The solid black line marks where the surface crosses $\hat{p} = 0.5$;
+its shadow on the floor (dotted) is the \textbf{decision boundary}.
+
+\textbf{Logistic regression draws a straight line between the classes.}
+The boundary is where the model is completely unsure:
+\[
+  \hat{p} = 0.5
+  \quad\Longleftrightarrow\quad
+  z = 0
+  \quad\Longleftrightarrow\quad
+  \sol[4.5cm]{b + w_1 x_1 + w_2 x_2 = 0}.
+\]
+This is a \emph{linear} equation in $x_1$ and $x_2$, so the boundary is a
+\textbf{straight line}.
+Every point on one side has $z > 0$ (predicted class 1), and every point on
+the other side has $z < 0$ (predicted class 0).
+
+\begin{example}[Boundary for the two-feature model]
+  With $\bth = [-3,\; 1,\; 0.5]^{\top}$ from Section~3, the boundary is
+  \[
+    -3 + x_1 + 0.5\,x_2 = 0
+    \quad\Longrightarrow\quad
+    x_2 = \sol[3cm]{6 - 2x_1}.
+  \]
+  The student with $(x_1, x_2) = (2, 4)$ has $z = 1 > 0$, so they lie on the
+  class-1 side of the line, which agrees with $\hat{p} \approx 0.73$.
+\end{example}
+
+\begin{notebox}
+  \textbf{What the sigmoid adds.}
+  The line itself comes only from $z = \bth^{\top}\bx$.
+  The sigmoid turns the \emph{distance} from the line into a confidence:
+  points near the line have $\hat{p} \approx 0.5$, and points far away have
+  $\hat{p}$ close to $0$ or $1$.
+  Scaling all of $\bth$ by the same factor keeps the line in place but makes
+  the transition steeper.
+
+  \textbf{Limitation.}
+  With $d$ features the boundary is a hyperplane, but it is always
+  \emph{flat}. If the classes cannot be separated by a straight line (or plane),
+  logistic regression cannot classify them correctly. We return to this in
+  Section~1.3.
+\end{notebox}
+
+
+% ══════════════════════════════════════════════════════════════════════════════
 \section{Summary}
 
 \begin{center}
@@ -314,11 +588,6 @@ Gradient descent will be covered in detail in the next section.
   \end{tabular}
 \end{center}
 
-\bigskip
-\textbf{Up next (Section~1.3):} What if no linear boundary can separate the
-classes?  We revisit the XOR dataset to show that both linear regression and
-logistic regression fail — motivating the need for non-linearity and neural
-networks.
 
 % ══════════════════════════════════════════════════════════════════════════════
 \appendix
